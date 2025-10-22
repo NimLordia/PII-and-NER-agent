@@ -26,7 +26,7 @@ An intelligent PII (Personally Identifiable Information) detection tool for PDF 
 
 1. Clone the repository:
 ```bash
-git clone <repository-url>
+git clone https://github.com/NimLordia/PII-and-NER-agent.git
 cd piiAgentRAG
 ```
 
@@ -196,6 +196,24 @@ piiAgentRAG/
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
+
+## Testing Dataset
+
+For testing this tool, we recommend using the **Kleister-NDA dataset** - a collection of Non-Disclosure Agreement (NDA) documents perfect for PII detection testing.
+
+### Download the Kleister-NDA Dataset
+
+```bash
+git clone https://github.com/applicaai/kleister-nda.git
+```
+
+Then test the PII detection on any document:
+
+```bash
+python pii_agent.py "kleister-nda/documents/00a1d238e37ac225b8045a97953e845d.pdf"
+```
+
+**Thank you to [applicaai](https://github.com/applicaai) for providing this excellent dataset!**
 
 ## Troubleshooting
 
