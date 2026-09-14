@@ -1,230 +1,119 @@
 # PII Detection Agent
 
-An intelligent PII (Personally Identifiable Information) detection tool for PDF documents that combines regex patterns, Named Entity Recognition (NER), and LLM-based refinement to accurately identify and categorize sensitive information.
+A personal learning project by [Nimrod Shaham](https://github.com/NimLordia), built in October 2025 to explore how regex, named entity recognition (NER), and LLM refinement can work together to identify potential personally identifiable information (PII) in PDF documents.
 
-## Features
+The project turns extracted document text into page-linked detections and JSON summaries. It combines conventional text processing with spaCy and Google Gemini, with a focus on entities found in legal documents such as NDAs.
 
-- **Multi-layered Detection**: Uses regex patterns, spaCy NER, and LLM refinement for accurate PII detection
-- **Entity Types Detected**:
-  - Person names
-  - Organizations
-  - Email addresses
-  - Phone numbers
-  - Address components
-- **Smart Filtering**: LLM-based post-processing to remove false positives
-- **Summary Statistics**: Aggregated view showing entity counts and page locations
-- **PDF Support**: Extract and analyze text from PDF documents
+This repository preserves the original implementation as a record of the concepts I explored and the tools I learned to combine.
 
-## Installation
+## What I built and learned
 
-### Prerequisites
+- Extracting text from PDFs with PyMuPDF while preserving page numbers.
+- Combining regex for emails and phone numbers with spaCy's `PERSON` and `ORG` entities.
+- Filtering common legal phrases and prompting Gemini to refine candidate entities into structured JSON.
+- Aggregating repeated entities by value and type, with occurrence counts and page references.
+- Wrapping PDF loading and detection as LangChain tools and experimenting with a ReAct agent.
 
-- Python 3.9 or higher
-- Google API key for Gemini
+The command-line entry point calls the detection pipeline directly. The separate `build_agent()` function contains the LangChain agent experiment.
 
-### Setup
+## How it works
 
-1. Clone the repository:
-```bash
-git clone https://github.com/NimLordia/PII-and-NER-agent.git
-cd piiAgentRAG
+```text
+PDF → page text → regex + spaCy NER → confidence filter → Gemini refinement → JSON + summary
 ```
 
-2. Create a virtual environment:
+1. **Extract:** PyMuPDF reads the text from each PDF page.
+2. **Detect:** Regex finds email addresses, phone numbers, and address hints; spaCy finds people and organizations.
+3. **Filter:** Candidates below the default `0.5` threshold are removed.
+4. **Refine:** Gemini receives candidate values, types, and page numbers and is prompted to remove false positives and correct categories.
+5. **Summarize:** Results are grouped by entity value and type, sorted by occurrence count.
+
+## Setup
+
+The instructions below document the original workflow. The refinement step uses `gemini-2.0-flash-exp`, which Google has since [retired](https://ai.google.dev/gemini-api/docs/models/gemini-2.0-flash); reproducing that step today requires a supported model integration.
+
+Use Python 3.11 or newer; the pinned dependencies require at least Python 3.11. A Google API key is required for the Gemini integration. Dependencies are preserved from the original project.
+
+Clone the repository and create a virtual environment:
+
 ```bash
+git clone https://github.com/NimLordia/PII-and-NER-agent.git
+cd PII-and-NER-agent
 python -m venv env
 ```
 
-3. Activate the virtual environment:
-   - Windows:
-     ```bash
-     env\Scripts\activate
-     ```
-   - macOS/Linux:
-     ```bash
-     source env/bin/activate
-     ```
+Activate it on Windows PowerShell:
 
-4. Install dependencies:
-```bash
-pip install -r requirements.txt
+```powershell
+.\env\Scripts\Activate.ps1
 ```
 
-5. Download the spaCy language model:
+Or on macOS/Linux:
+
 ```bash
-python -m spacy download en_core_web_sm
+source env/bin/activate
 ```
 
-6. Create a `.env` file in the project root:
+Install the pinned dependencies, including the `en_core_web_sm` spaCy model:
+
 ```bash
+python -m pip install -r requirements.txt
+```
+
+Create a `.env` file in the repository root using [`.env.example`](.env.example) as a template:
+
+```dotenv
 GOOGLE_API_KEY=your_google_api_key_here
 ```
 
 ## Usage
 
-Run the PII detection on a PDF document:
+Run the pipeline on a PDF with extractable text:
 
 ```bash
 python pii_agent.py "path/to/document.pdf"
 ```
 
-### Windows Example:
+The program prints JSON to standard output. To save it:
+
 ```bash
-python pii_agent.py "C:\Documents\contract.pdf"
+python pii_agent.py "path/to/document.pdf" > results.json
 ```
 
-### Output Format
+The output contains `detections` and a `summary`. Example structure using fictional data:
 
-The tool outputs JSON with two main sections:
-
-1. **detections**: Full list of all detected entities with their locations
-2. **summary**: Aggregated statistics showing:
-   - Entity value
-   - Entity type
-   - Total count of occurrences
-   - Pages where it appears
-
-Example output:
 ```json
 {
   "detections": [
-    {
-      "value": "John Doe",
-      "type": "person_name",
-      "page": 1
-    },
-    ...
+    {"value": "Alex Morgan", "type": "person_name", "page": 1, "confidence": 0.9},
+    {"value": "Alex Morgan", "type": "person_name", "page": 2, "confidence": 0.9},
+    {"value": "alex@example.com", "type": "email", "page": 2, "confidence": 0.99}
   ],
   "summary": [
-    {
-      "value": "John Doe",
-      "type": "person_name",
-      "count": 3,
-      "pages": [1, 2, 5]
-    },
-    ...
+    {"value": "Alex Morgan", "type": "person_name", "count": 2, "pages": [1, 2]},
+    {"value": "alex@example.com", "type": "email", "count": 1, "pages": [2]}
   ]
 }
 ```
 
-## How It Works
+## Scope and limitations
 
-1. **PDF Text Extraction**: Extracts text from PDF documents using PyMuPDF
-2. **Regex Detection**: Applies regex patterns to detect:
-   - Email addresses
-   - Phone numbers
-   - Address components
-3. **NER Detection**: Uses spaCy's NER model to detect:
-   - Person names (PERSON entities)
-   - Organizations (ORG entities)
-4. **LLM Refinement**: Sends detected entities to Google's Gemini model to:
-   - Filter out false positives (generic legal terms, document sections)
-   - Correctly categorize ambiguous entities
-   - Return only genuine PII
-5. **Summary Generation**: Aggregates results and counts occurrences
+- Uses an English spaCy model and requires text-based PDFs; scanned documents need OCR before use.
+- Detector confidence values are fixed heuristics. NER and LLM refinement can miss entities or return false positives, so results need review.
+- Address detection only produces keyword hints with confidence `0.40`, so the default `0.5` threshold excludes them before refinement.
+- PDF extraction and initial detection happen locally. Candidate entity values, types, and page numbers are sent to Google's Gemini API for refinement.
+- If the model invocation or response parsing fails, the code prints a warning and returns the candidates from before refinement.
 
-## Configuration
+## Files
 
-### Minimum Confidence Threshold
+| File | Purpose |
+| --- | --- |
+| [`pii_agent.py`](pii_agent.py) | PDF extraction, detection, refinement, LangChain tools, agent setup, and CLI |
+| [`requirements.txt`](requirements.txt) | Original pinned Python dependencies and spaCy model |
+| [`LICENSE`](LICENSE) | MIT license |
 
-By default, the tool filters entities with confidence below 0.5. You can modify this in the code:
+## Acknowledgments and license
 
-```python
-result = _detect_pii_impl(pdf_path, minimum_confidence=0.7)  # Stricter filtering
-```
+Thanks to [ApplicaAI](https://github.com/applicaai) for the [Kleister-NDA dataset](https://github.com/applicaai/kleister-nda), a source of NDA documents for document-processing experiments. See the dataset repository for its contents and usage terms.
 
-### LLM Model
-
-The tool uses `gemini-2.0-flash-exp` by default. You can change the model in `refine_detections_with_llm()`:
-
-```python
-llm = ChatGoogleGenerativeAI(
-    model="gemini-2.0-flash-exp",  # Change this
-    temperature=0.0,
-    api_key=os.getenv("GOOGLE_API_KEY")
-)
-```
-
-### Custom Regex Patterns
-
-Add or modify regex patterns in the global variables section:
-
-```python
-EMAIL_REGEX = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")
-PHONE_REGEX = re.compile(r"\b(?:\+?\d{1,3}[-.\s]?)?(?:\(?\d{2,4}\)?[-.\s]?)?\d{3,4}[-.\s]?\d{4}\b")
-```
-
-## Project Structure
-
-```
-piiAgentRAG/
-├── pii_agent.py          # Main application file
-├── requirements.txt      # Python dependencies
-├── .env                  # Environment variables (not in git)
-├── .gitignore           # Git ignore rules
-└── README.md            # This file
-```
-
-## Dependencies
-
-- **PyMuPDF (fitz)**: PDF text extraction
-- **spaCy**: Named Entity Recognition
-- **LangChain**: LLM integration and agent framework
-- **Google Generative AI**: LLM for refinement
-- **python-dotenv**: Environment variable management
-
-## Limitations
-
-- Currently optimized for English text
-- Legal documents may contain many entity-like terms that require careful filtering
-- Brand names may sometimes be misclassified as person names
-- OCR is not performed on scanned PDFs (text must be extractable)
-
-## Future Improvements
-
-- [ ] Add support for more PII types (SSN, credit cards, dates of birth)
-- [ ] Implement OCR for scanned documents
-- [ ] Add batch processing for multiple PDFs
-- [ ] Create web interface
-- [ ] Add support for other document formats (DOCX, TXT)
-- [ ] Implement custom entity training
-
-## License
-
-[Your License Here]
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## Testing Dataset
-
-For testing this tool, we recommend using the **Kleister-NDA dataset** - a collection of Non-Disclosure Agreement (NDA) documents perfect for PII detection testing.
-
-### Download the Kleister-NDA Dataset
-
-```bash
-git clone https://github.com/applicaai/kleister-nda.git
-```
-
-Then test the PII detection on any document:
-
-```bash
-python pii_agent.py "kleister-nda/documents/00a1d238e37ac225b8045a97953e845d.pdf"
-```
-
-**Thank you to [applicaai](https://github.com/applicaai) for providing this excellent dataset!**
-
-## Troubleshooting
-
-### "No module named 'fitz'"
-Run: `pip install PyMuPDF`
-
-### "Can't find model 'en_core_web_sm'"
-Run: `python -m spacy download en_core_web_sm`
-
-### "Your default credentials were not found"
-Make sure you have a `.env` file with a valid `GOOGLE_API_KEY`
-
-### Path issues on Windows
-Always use quotes around file paths: `python pii_agent.py "C:\path\to\file.pdf"`
+Released under the [MIT License](LICENSE). Copyright © 2025 Nimrod Shaham.
